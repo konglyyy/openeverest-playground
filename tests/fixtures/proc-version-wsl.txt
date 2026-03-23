@@ -1,0 +1,1 @@
+k tpo Linux version 5.15.167.4-microsoft-standard-WSL2 (mock@example) #1 SMP PREEMPT_DYNAMIC Tue Jul 23 18:02:00 UTC 2024 x86_64 GNU/Linux

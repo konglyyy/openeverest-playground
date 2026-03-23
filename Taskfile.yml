@@ -1,0 +1,106 @@
+version: "3"
+silent: true
+
+dotenv:
+  - config/playground.env
+
+tasks:
+  default:
+    cmds:
+      - task --taskfile "{{.TASKFILE}}" --list
+
+  help:
+    desc: Show the available playground commands
+    cmds:
+      - task --taskfile "{{.TASKFILE}}" --list
+
+  init:
+    desc: Interactively configure the playground and immediately apply it
+    cmds:
+      - ./scripts/config/init.sh
+
+  init:apply:
+    cmds:
+      - ./scripts/config/ensure-docker-runtime-snapshot.sh
+      - PLAYGROUND_DOCTOR_REPORT=false ./scripts/doctor/check-deps.sh full
+      - ./scripts/config/check-config-policy.sh
+      - ./scripts/cluster/ensure-cluster.sh ensure
+      - ./scripts/platform/install-everest.sh
+      - ./scripts/platform/install-db-namespaces.sh
+      - ./scripts/platform/install-backup-stack.sh
+      - ./scripts/platform/reconcile-control-plane-placement.sh
+      - ./scripts/platform/wait.sh install
+      - ./scripts/platform/ensure-ingress.sh
+      - ./scripts/access/print-access.sh init
+      - ./scripts/config/record-applied-config.sh
+
+  doctor:
+    desc: Validate local dependencies, Docker, k3d, and Helm availability
+    cmds:
+      - ./scripts/doctor/check-deps.sh local
+
+  up:
+    desc: Resume a previously initialized playground without reinstalling it
+    cmds:
+      - ./scripts/ops/up.sh
+
+  down:
+    desc: Stop the k3d cluster without deleting it
+    cmds:
+      - ./scripts/cluster/cleanup.sh down
+
+  reset:
+    desc: Delete the k3d cluster and local state while preserving the Docker Hub cache
+    cmds:
+      - ./scripts/cluster/cleanup.sh reset
+
+  reset:full:
+    desc: Delete the k3d cluster, local state, and the Docker Hub cache
+    cmds:
+      - ./scripts/cluster/cleanup.sh reset-full
+
+  status:
+    desc: Print cluster, namespace, database engine, backup, and access status
+    cmds:
+      - ./scripts/ops/status.sh
+
+  logs:
+    desc: Tail OpenEverest logs
+    cmds:
+      - ./scripts/ops/logs.sh
+
+  ci:
+    desc: Show the available validation commands
+    cmds:
+      - |
+        cat <<'EOF'
+        task: Available CI commands:
+        * ci:all:             Run the full validation suite locally
+        * ci:bootstrap:       Install the local validation helper dependencies
+        * ci:lint:            Run the static shell, YAML, and workflow validation checks
+        * ci:test:            Run deterministic shell tests without creating a cluster
+        * ci:smoke:minimal:   Run the minimal-layout k3d lifecycle smoke test
+        EOF
+
+  ci:all:
+    cmds:
+      - task: ci:lint
+      - task: ci:test
+      - task: ci:smoke:minimal
+      - printf '%s\n' "Validation suite passed."
+
+  ci:bootstrap:
+    cmds:
+      - ./scripts/ci/bootstrap-local.sh all
+
+  ci:lint:
+    cmds:
+      - ./scripts/ci/run-lint.sh
+
+  ci:test:
+    cmds:
+      - ./scripts/ci/run-shell-tests.sh
+
+  ci:smoke:minimal:
+    cmds:
+      - ./scripts/ci/run-smoke-minimal.sh

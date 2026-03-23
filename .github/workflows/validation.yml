@@ -1,0 +1,97 @@
+name: Validation
+
+on:
+  # Run the validation suite on mainline changes while skipping docs-only edits.
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - README.md
+      - CONTRIBUTING.md
+  # Validate pull requests with the same docs-only fast path as pushes.
+  pull_request:
+    paths-ignore:
+      - README.md
+      - CONTRIBUTING.md
+  # Allow maintainers to trigger the full suite manually when needed.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Cancel superseded runs for the same branch or pull request to save CI time.
+  group: validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast static validation catches shell, YAML, workflow, and comment-style issues.
+  static:
+    name: static
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Fetch the repository contents for the validation scripts.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Install the linting tools needed by `task ci:lint`.
+      - name: Bootstrap static toolchain
+        run: ./scripts/ci/bootstrap-runner.sh static
+
+      # Run the repo's static validation entrypoint.
+      - name: Run static checks
+        run: task ci:lint
+
+  # Deterministic shell tests verify the shared helpers and command behavior without a live cluster.
+  shell-tests:
+    name: shell-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Fetch the repository contents for the test scripts.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Install the shell-test dependencies used by the Bats suite.
+      - name: Bootstrap shell-test toolchain
+        run: ./scripts/ci/bootstrap-runner.sh shell-tests
+
+      # Run the deterministic shell and Bats test suite.
+      - name: Run shell tests
+        run: task ci:test
+
+  # The smoke test provisions a real minimal cluster after the fast checks pass.
+  smoke-minimal:
+    name: smoke-minimal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    needs:
+      - static
+      - shell-tests
+    steps:
+      # Fetch the repository contents for the smoke workflow.
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # Install Docker/k3d/Kubernetes tooling for the end-to-end smoke run.
+      - name: Bootstrap smoke toolchain
+        run: ./scripts/ci/bootstrap-runner.sh smoke-minimal
+
+      # Exercise the minimal supported playground lifecycle end to end.
+      - name: Run minimal-layout smoke test
+        run: task ci:smoke:minimal
+
+      # Preserve cluster state and command output even when the smoke test fails.
+      - name: Collect smoke diagnostics
+        if: always()
+        run: ./scripts/ci/collect-diagnostics.sh smoke-minimal
+
+      # Publish the collected diagnostics so failures can be debugged from the Actions UI.
+      - name: Upload smoke diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-minimal-diagnostics
+          path: .ci-artifacts/smoke-minimal
+          if-no-files-found: ignore

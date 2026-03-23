@@ -1,0 +1,28 @@
+# Stores the shared SeaweedFS access key pair inside the shared DB namespace so
+# its BackupStorage object can authenticate to the shared S3 endpoint.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: __BACKUP_SECRET_NAME__
+  namespace: __DB_NAMESPACE__
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: __SEAWEEDFS_ACCESS_KEY__
+  AWS_SECRET_ACCESS_KEY: __SEAWEEDFS_SECRET_KEY__
+---
+# Registers the backup target that Everest exposes in the UI for databases
+# created inside the shared DB namespace.
+apiVersion: everest.percona.com/v1alpha1
+kind: BackupStorage
+metadata:
+  name: __BACKUP_STORAGE_NAME__
+  namespace: __DB_NAMESPACE__
+spec:
+  bucket: __BACKUP_BUCKET__
+  credentialsSecretName: __BACKUP_SECRET_NAME__
+  description: SeaweedFS S3 backup storage for __DB_NAMESPACE__
+  endpointURL: __SEAWEEDFS_ENDPOINT__
+  forcePathStyle: true
+  region: __AWS_DEFAULT_REGION__
+  type: s3
+  verifyTLS: false

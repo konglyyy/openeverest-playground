@@ -1,0 +1,115 @@
+# Stores the shared S3-style access keys that both SeaweedFS and the bucket
+# initialization job use for local backup testing.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: seaweedfs-s3-credentials
+  namespace: __PLAYGROUND_SYSTEM_NAMESPACE__
+type: Opaque
+stringData:
+  AWS_ACCESS_KEY_ID: __SEAWEEDFS_ACCESS_KEY__
+  AWS_SECRET_ACCESS_KEY: __SEAWEEDFS_SECRET_KEY__
+---
+# Provides persistent local disk for the single SeaweedFS pod so uploaded
+# backup objects survive pod restarts within the playground cluster.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seaweedfs-data
+  namespace: __PLAYGROUND_SYSTEM_NAMESPACE__
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: __SEAWEEDFS_VOLUME_SIZE__
+---
+# Runs a lightweight SeaweedFS instance that exposes the shared S3-compatible
+# endpoint used by the playground backup feature.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seaweedfs
+  namespace: __PLAYGROUND_SYSTEM_NAMESPACE__
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seaweedfs
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seaweedfs
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: seaweedfs
+          image: __SEAWEEDFS_IMAGE__
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - -ip.bind=0.0.0.0
+            - -dir=/data
+            - -s3
+            - -s3.port=__SEAWEEDFS_S3_PORT__
+            - -s3.port.https=__SEAWEEDFS_S3_HTTPS_PORT__
+            - -s3.cert.file=/etc/seaweedfs/tls/tls.crt
+            - -s3.key.file=/etc/seaweedfs/tls/tls.key
+          envFrom:
+            - secretRef:
+                name: seaweedfs-s3-credentials
+          ports:
+            - name: s3-http
+              containerPort: __SEAWEEDFS_S3_PORT__
+            - name: s3-https
+              containerPort: __SEAWEEDFS_S3_HTTPS_PORT__
+          readinessProbe:
+            tcpSocket:
+              port: s3-https
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tls
+              mountPath: /etc/seaweedfs/tls
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: seaweedfs-data
+        - name: tls
+          secret:
+            secretName: __SEAWEEDFS_TLS_SECRET_NAME__
+---
+# Publishes the in-cluster SeaweedFS S3 endpoint so Everest backup storages can
+# reach it through a stable service DNS name.
+apiVersion: v1
+kind: Service
+metadata:
+  name: __SEAWEEDFS_SERVICE_NAME__
+  namespace: __PLAYGROUND_SYSTEM_NAMESPACE__
+spec:
+  selector:
+    app.kubernetes.io/name: seaweedfs
+  ports:
+    - name: s3-http
+      port: __SEAWEEDFS_S3_PORT__
+      targetPort: s3-http
+    - name: s3-https
+      port: __SEAWEEDFS_S3_HTTPS_PORT__
+      targetPort: s3-https

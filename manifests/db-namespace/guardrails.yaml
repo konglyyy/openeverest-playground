@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: everest-playground-limits
+  namespace: __DB_NAMESPACE__
+spec:
+  limits:
+    - type: Container
+      defaultRequest:
+        cpu: "__DEFAULT_CONTAINER_REQUEST_CPU__"
+        memory: "__DEFAULT_CONTAINER_REQUEST_MEMORY__"
+      default:
+        cpu: "__DEFAULT_CONTAINER_LIMIT_CPU__"
+        memory: "__DEFAULT_CONTAINER_LIMIT_MEMORY__"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: everest-playground-quota
+  namespace: __DB_NAMESPACE__
+spec:
+  hard:
+    requests.cpu: "__REQUESTS_CPU__"
+    limits.cpu: "__LIMITS_CPU__"
+    requests.memory: "__REQUESTS_MEMORY__"
+    limits.memory: "__LIMITS_MEMORY__"
+    requests.storage: "__REQUESTS_STORAGE__"

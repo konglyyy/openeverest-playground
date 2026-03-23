@@ -1,0 +1,6 @@
+.DS_Store
+.env
+config/playground.env
+.state/
+.cache/
+.ci-artifacts/

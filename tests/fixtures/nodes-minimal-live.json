@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "openeverest-playground-server-0",
+        "labels": {
+          "node-role.kubernetes.io/control-plane": "true"
+        }
+      },
+      "spec": {
+        "taints": [
+          {
+            "key": "node-role.kubernetes.io/control-plane",
+            "value": "true",
+            "effect": "NoSchedule"
+          }
+        ]
+      },
+      "status": {
+        "allocatable": {
+          "cpu": "500m",
+          "memory": "256Mi"
+        }
+      }
+    },
+    {
+      "metadata": {
+        "name": "openeverest-playground-agent-0",
+        "labels": {}
+      },
+      "spec": {
+        "taints": []
+      },
+      "status": {
+        "allocatable": {
+          "cpu": "2500m",
+          "memory": "2560Mi"
+        }
+      }
+    }
+  ]
+}

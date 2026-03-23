@@ -1,0 +1,52 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: __CLUSTER_NAME__
+servers: __K3D_SERVER_COUNT__
+agents: __K3D_AGENT_COUNT__
+registries:
+  create:
+    name: docker-io
+    proxy:
+      remoteURL: https://registry-1.docker.io
+    volumes:
+      - "__REGISTRY_CACHE_DIR__:/var/lib/registry"
+  config: |
+    mirrors:
+      "docker.io":
+        endpoint:
+          - http://docker-io:5000
+ports:
+  - port: "__EVEREST_UI_PORT__:80"
+    nodeFilters:
+      - loadbalancer
+options:
+  k3d:
+    wait: true
+    timeout: 300s
+  k3s:
+    extraArgs:
+      - arg: --disable=metrics-server
+        nodeFilters:
+          - server:*
+      - arg: "__SERVER_NODE_TAINT_ARG__"
+        nodeFilters:
+          - server:*
+      - arg: "__SERVER_SYSTEM_RESERVED_ARG__"
+        nodeFilters:
+          - server:*
+      - arg: "__AGENT_SYSTEM_RESERVED_ARG__"
+        nodeFilters:
+          - agent:*
+      # k3d nodes run inside Docker, so the default kubelet eviction threshold
+      # is too eager for heavyweight database image pulls in a local playground.
+      # Relax it enough to avoid premature DiskPressure evictions while still
+      # leaving a small safety margin before the Docker disk is truly exhausted.
+      - arg: "--kubelet-arg=eviction-hard=nodefs.available<1Gi,imagefs.available<1Gi,nodefs.inodesFree<5%,imagefs.inodesFree<5%"
+        nodeFilters:
+          - server:*
+          - agent:*
+      - arg: "--kubelet-arg=eviction-minimum-reclaim=nodefs.available=500Mi,imagefs.available=500Mi"
+        nodeFilters:
+          - server:*
+          - agent:*

@@ -1,0 +1,15 @@
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  hosts:
+    - host: __EVEREST_UI_HOST__
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+server:
+  tls:
+    enabled: false
+
+dbNamespace:
+  enabled: false

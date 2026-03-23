@@ -1,0 +1,58 @@
+# Creates the managed DB namespace buckets on the shared SeaweedFS endpoint so
+# the BackupStorage definition has a target bucket ready before users test backups.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweedfs-bucket-init
+  namespace: __PLAYGROUND_SYSTEM_NAMESPACE__
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      restartPolicy: OnFailure
+      containers:
+        - name: create-buckets
+          image: __AWS_CLI_IMAGE__
+          imagePullPolicy: IfNotPresent
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: seaweedfs-s3-credentials
+                  key: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: seaweedfs-s3-credentials
+                  key: AWS_SECRET_ACCESS_KEY
+            - name: AWS_DEFAULT_REGION
+              value: __AWS_DEFAULT_REGION__
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              endpoint="http://__SEAWEEDFS_SERVICE_NAME__.__PLAYGROUND_SYSTEM_NAMESPACE__.svc.cluster.local:__SEAWEEDFS_S3_PORT__"
+              for bucket in __SEAWEEDFS_BUCKET_LIST__; do
+                if aws --endpoint-url "${endpoint}" s3 ls "s3://${bucket}" >/dev/null 2>&1; then
+                  echo "Bucket ${bucket} already exists."
+                else
+                  echo "Creating bucket ${bucket}."
+                  aws --endpoint-url "${endpoint}" s3 mb "s3://${bucket}"
+                fi
+              done
