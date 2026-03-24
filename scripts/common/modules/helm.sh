@@ -78,7 +78,7 @@ mark_helm_repo_refreshed() {
   touch "${HELM_REPO_REFRESH_MARKER}"
 }
 
-# Adds the Percona repo once and only performs a full metadata refresh when the
+# Adds the OpenEverest repo once and only performs a full metadata refresh when the
 # local cache is absent, stale, or explicitly forced.
 ensure_helm_repo() {
   load_env

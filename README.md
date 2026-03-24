@@ -63,7 +63,7 @@ The project intentionally optimizes for fast local evaluation and repeatable dem
 
 ### Features
 
-- OpenEverest installed from `percona/everest`, with optional version pinning for CI or debugging
+- OpenEverest installed from `openeverest/openeverest`, with optional version pinning for CI or debugging
 - All three database operators always available: PostgreSQL, MySQL/PXC, and MongoDB
 - Single shared database namespace, `everest-databases`, for a simpler mental model
 - Always-on Docker Hub pull-through cache for `docker.io` images, stored under `.cache/dockerhub-registry`
@@ -189,7 +189,7 @@ EVEREST_HELM_CHART_VERSION=
 EVEREST_DB_NAMESPACE_CHART_VERSION=
 ```
 
-Config behavior:
+Configuration behavior:
 
 - `config/playground.env.example` is the committed default template
 - edit `config/playground.env` directly or let `task init` update it interactively
@@ -198,6 +198,9 @@ Config behavior:
 - `ENABLE_BACKUP` is the supported feature toggle
 - `EVEREST_UI_PORT` lets you avoid a local port conflict on `localhost`
 - `EVEREST_HELM_CHART_VERSION` and `EVEREST_DB_NAMESPACE_CHART_VERSION` are optional; leave them empty to use the chart defaults from the configured Helm repo, or set them to pin validation or debugging runs
+
+Non-configurable behavior:
+
 - the Docker Hub cache is an internal always-on implementation detail, not a public config setting
 - the resolved worker layout, control-plane reservation, port mapping, and feature set are treated as reset-required when they drift
 - namespace names, chart repository details, and backup internals are fixed implementation defaults rather than public playground settings
