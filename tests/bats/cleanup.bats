@@ -129,3 +129,71 @@ EOF
   [[ "${output}" == *"does not exist. Purging local state and cache only."* ]]
   [[ "${output}" == *"Removing Docker Hub pull-through cache"* ]]
 }
+
+@test "task down stops task seed runtime even when the cluster is absent" {
+  sandbox="$(mktemp -d)"
+  stub_dir="${sandbox}/bin"
+  cluster_marker="${sandbox}/cluster-present"
+
+  mkdir -p "${stub_dir}"
+  create_fake_k3d "${stub_dir}" "${cluster_marker}"
+
+  run env \
+    NO_COLOR=1 \
+    PATH="${stub_dir}:${PATH}" \
+    PLAYGROUND_ENV_FILE="${sandbox}/playground.env" \
+    PLAYGROUND_STATE_DIR="${sandbox}/state" \
+    PLAYGROUND_NO_SPINNER=true \
+    CLUSTER_NAME="openeverest-playground" \
+    bash -c '
+      set -euo pipefail
+      cd "'"${BATS_TEST_DIRNAME}"'/../.."
+      mkdir -p "${PLAYGROUND_STATE_DIR}/task-seed"
+      sleep 30 &
+      frontend_pid=$!
+      sleep 30 &
+      tunnel_pid=$!
+      printf "%s\n" "${frontend_pid}" >"${PLAYGROUND_STATE_DIR}/task-seed/frontend.pid"
+      printf "%s\n" "${tunnel_pid}" >"${PLAYGROUND_STATE_DIR}/task-seed/port-forward.pid"
+      ./scripts/cluster/cleanup.sh down
+      ! kill -0 "${frontend_pid}" >/dev/null 2>&1
+      ! kill -0 "${tunnel_pid}" >/dev/null 2>&1
+    '
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"Cluster openeverest-playground does not exist."* ]]
+}
+
+@test "task reset stops task seed runtime even when the cluster is absent" {
+  sandbox="$(mktemp -d)"
+  stub_dir="${sandbox}/bin"
+  cluster_marker="${sandbox}/cluster-present"
+
+  mkdir -p "${stub_dir}"
+  create_fake_k3d "${stub_dir}" "${cluster_marker}"
+
+  run env \
+    NO_COLOR=1 \
+    PATH="${stub_dir}:${PATH}" \
+    PLAYGROUND_ENV_FILE="${sandbox}/playground.env" \
+    PLAYGROUND_STATE_DIR="${sandbox}/state" \
+    PLAYGROUND_NO_SPINNER=true \
+    CLUSTER_NAME="openeverest-playground" \
+    bash -c '
+      set -euo pipefail
+      cd "'"${BATS_TEST_DIRNAME}"'/../.."
+      mkdir -p "${PLAYGROUND_STATE_DIR}/task-seed"
+      sleep 30 &
+      frontend_pid=$!
+      sleep 30 &
+      tunnel_pid=$!
+      printf "%s\n" "${frontend_pid}" >"${PLAYGROUND_STATE_DIR}/task-seed/frontend.pid"
+      printf "%s\n" "${tunnel_pid}" >"${PLAYGROUND_STATE_DIR}/task-seed/port-forward.pid"
+      ./scripts/cluster/cleanup.sh reset
+      ! kill -0 "${frontend_pid}" >/dev/null 2>&1
+      ! kill -0 "${tunnel_pid}" >/dev/null 2>&1
+    '
+
+  [ "${status}" -eq 0 ]
+  [[ "${output}" == *"Cluster openeverest-playground does not exist."* ]]
+}

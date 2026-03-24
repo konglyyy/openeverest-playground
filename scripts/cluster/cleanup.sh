@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Stops or deletes the local k3d cluster used by the playground.
+# Stops or deletes the local k3d cluster used by the playground and tears down
+# any optional task seed runtime processes.
 # `down` preserves cluster state for faster restarts, while `reset` removes the
 # cluster plus local state. `reset-full` also purges the repo-local Docker Hub
 # cache for a fully cold next run.
@@ -11,11 +12,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck disable=SC1091
 . "${ROOT_DIR}/scripts/common/lib.sh"
+# shellcheck disable=SC1091
+. "${ROOT_DIR}/scripts/seed/runtime.sh"
 
 load_env
 
 action="${1:-}"
 [ -n "${action}" ] || die "Usage: $0 <down|reset|reset-full>"
+
+# Any playground cleanup action should also tear down the optional task seed
+# demo processes so stale local servers and tunnels do not linger.
+stop_task_seed_runtime
 
 # Removes the effective playground state directory for the current run.
 remove_local_state() {

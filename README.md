@@ -42,6 +42,7 @@ The playground is built around a simple lifecycle:
 - `task init` is the required first-run entrypoint
 - `task down` stops the cluster without deleting it
 - `task up` resumes a previously initialized cluster
+- `task seed` prepares demo todo data for one user-created database and can open a mock CRUD UI
 - `task reset` deletes the cluster and local state while preserving the repo-local Docker Hub cache
 - `task reset:full` deletes the cluster, local state, and the repo-local Docker Hub cache
 
@@ -70,6 +71,7 @@ The project intentionally optimizes for fast local evaluation and repeatable dem
 - Optional shared SeaweedFS S3-compatible backup endpoint for backup testing
 - Resume-only `task up` flow so start/stop is fast and predictable after initialization
 - Direct local UI access on [http://localhost:8080](http://localhost:8080) through the built-in k3s Traefik ingress
+- Optional `task seed` demo flow for seeding one database and opening a tiny CRUD UI against `playground_todos`
 - Concise terminal UX with an init wizard, structured `[INFO]` logs, resolved layout summaries, and loading indicators for long-running steps
 - Contributor validation workflows for static checks, shell tests, and a minimal-layout smoke test
 
@@ -112,6 +114,7 @@ The playground expects these tools to be installed locally:
 - `helm`
 - `jq`
 - `task`
+- `python3` if you want `task seed` to launch the optional mock frontend locally
 
 You can validate the environment with:
 
@@ -164,6 +167,12 @@ task down
 task up
 ```
 
+7. After you create a database in the OpenEverest UI, seed a tiny demo dataset and optionally open the mock todo app:
+
+```bash
+task seed
+```
+
 The first `task init` can take up to 5-10 minutes on a fresh machine because it needs to create the cluster, pull images, install OpenEverest, and start all three database operators. Enabling backup adds extra work on top of that.
 
 The Docker Hub cache is always enabled. The first pull for a given `docker.io` image still goes upstream, but later resets and reinitializations can reuse the cached layers from `.cache/dockerhub-registry`. The backing registry keeps its default seven-day proxy retention window. `task reset` preserves that cache; `task reset:full` removes it.
@@ -189,7 +198,7 @@ EVEREST_HELM_CHART_VERSION=
 EVEREST_DB_NAMESPACE_CHART_VERSION=
 ```
 
-Configuration behavior:
+Config behavior:
 
 - `config/playground.env.example` is the committed default template
 - edit `config/playground.env` directly or let `task init` update it interactively
@@ -198,9 +207,6 @@ Configuration behavior:
 - `ENABLE_BACKUP` is the supported feature toggle
 - `EVEREST_UI_PORT` lets you avoid a local port conflict on `localhost`
 - `EVEREST_HELM_CHART_VERSION` and `EVEREST_DB_NAMESPACE_CHART_VERSION` are optional; leave them empty to use the chart defaults from the configured Helm repo, or set them to pin validation or debugging runs
-
-Non-configurable behavior:
-
 - the Docker Hub cache is an internal always-on implementation detail, not a public config setting
 - the resolved worker layout, control-plane reservation, port mapping, and feature set are treated as reset-required when they drift
 - namespace names, chart repository details, and backup internals are fixed implementation defaults rather than public playground settings
@@ -213,6 +219,7 @@ Non-configurable behavior:
 | --- | --- |
 | `task init` | Interactively configure the playground and provision it |
 | `task up` | Resume a previously initialized playground without reinstalling it |
+| `task seed` | Seed a user-created database and optionally open a mock todo frontend |
 | `task down` | Stop the `k3d` cluster without deleting it |
 | `task reset` | Delete the cluster and local state while preserving `.cache/dockerhub-registry` |
 | `task reset:full` | Delete the cluster, local state, and `.cache/dockerhub-registry` |
@@ -259,7 +266,20 @@ When backup is enabled:
 
 - the UI is exposed through the built-in k3s Traefik ingress
 - `k3d` maps host port `8080` to that ingress
-- no background tunnel or `kubectl port-forward` process is required
+- for the main OpenEverest UI, no background tunnel or `kubectl port-forward` process is required
+
+* * *
+
+### Task Seed
+
+`task seed` is an optional demo helper that keeps the playground lightweight:
+
+- it first checks that `task init` already completed successfully
+- it prompts for a database connection string copied from the OpenEverest UI
+- it creates and seeds only a small `playground_todos` table or collection; if that demo data is already present, it leaves it unchanged
+- it can also open a tiny local CRUD UI against that same seeded data by serving one local CGI app with `python3`
+
+When the supplied database host is cluster-internal, `task seed` keeps a local `kubectl port-forward` running only for the lifetime of the mock frontend.
 
 * * *
 
@@ -267,6 +287,8 @@ When backup is enabled:
 
 - If `task up` says the playground is not initialized, run `task init` first.
 - If `task up` says the config changed, rerun `task init` to apply the current `config/playground.env`.
+- If `task seed` says the cluster is not running, start it with `task up` first.
+- If `task seed` opens the mock frontend, closing it cleanly later is as simple as rerunning `task seed`, `task down`, or `task reset`.
 - If `task init` says the current plan requires a reset, run `task reset` and then `task init`.
 - If `task init` says the Docker budget cannot fit the resolved plan, increase the Docker Desktop memory or CPU limit and rerun it.
 - If setup feels slow, the biggest unavoidable costs are first-time image pulls and starting the control-plane services and operators. Backup-enabled runs also need to start their optional add-ons.
@@ -286,8 +308,9 @@ The shell scripts are grouped by responsibility:
 - `scripts/ci/` for GitHub Actions bootstrap, validation helpers, smoke checks, and diagnostics
 - `scripts/common/` for the shared helper loader plus focused helper modules under `scripts/common/modules/`
 - `scripts/doctor/` for preflight validation
-- `scripts/ops/` for logs, status, and resume flow
+- `scripts/ops/` for logs, status, resume flow, and the task seed entrypoint
 - `scripts/platform/` for Everest installation, DB namespace setup, backup setup, control-plane placement and tainting, ingress checks, and readiness waits
+- `scripts/seed/` for the optional task seed database helpers and mock frontend
 
 Shell and Bats files also follow one repo-wide convention: each file starts with
 a short purpose header, and each function is preceded by a brief comment that

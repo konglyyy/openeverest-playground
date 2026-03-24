@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Verifies that `task up` can resume a previously initialized playground.
-# It blocks first-run usage, missing clusters, and unapplied config drift so
-# `task up` stays a pure resume command instead of a hidden reconcile path.
+# Verifies that resume-style commands can reuse a previously initialized
+# playground without silently reconciling config drift or recreating the
+# cluster. `task up` and `task seed` both rely on this guard.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -27,7 +27,7 @@ fi
 if config_changes_present "${APPLIED_CONFIG_FILE}" "${candidate_snapshot}"; then
   warn "Current config differs from the initialized playground state."
   print_config_change_summary "${APPLIED_CONFIG_FILE}" "${candidate_snapshot}"
-  die "Run 'task init' to apply those config changes before using 'task up'."
+  die "Run 'task init' to apply those config changes before using 'task up' or 'task seed'."
 fi
 
 if ! playground_exists_for_snapshot "${APPLIED_CONFIG_FILE}"; then

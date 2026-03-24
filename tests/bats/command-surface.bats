@@ -23,6 +23,7 @@ load 'helpers/playground.bash'
   [[ "${output}" == *"logs:"* ]]
   [[ "${output}" == *"reset:"* ]]
   [[ "${output}" == *"reset:full:"* ]]
+  [[ "${output}" == *"seed:"* ]]
   [[ "${output}" == *"status:"* ]]
   [[ "${output}" == *"up:"* ]]
   [[ "${output}" != *"ci:all:"* ]]

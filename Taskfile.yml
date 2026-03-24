@@ -44,6 +44,11 @@ tasks:
     cmds:
       - ./scripts/ops/up.sh
 
+  seed:
+    desc: Seed a user-created database and optionally open a mock todo frontend
+    cmds:
+      - ./scripts/ops/seed.sh
+
   down:
     desc: Stop the k3d cluster without deleting it
     cmds:
