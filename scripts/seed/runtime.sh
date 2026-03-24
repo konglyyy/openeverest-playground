@@ -1,83 +1,42 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Helpers for the optional `task seed` demo flow.
+# Helpers for the optional `task mock:*` demo flow.
 # -----------------------------------------------------------------------------
 
 TASK_SEED_COLLECTION_NAME="${TASK_SEED_COLLECTION_NAME:-playground_todos}"
+TASK_SEED_PORT_FORWARD_PID="${TASK_SEED_PORT_FORWARD_PID:-}"
+TASK_SEED_PORT_FORWARD_LOG_FILE="${TASK_SEED_PORT_FORWARD_LOG_FILE:-}"
+TASK_SEED_PORT_FORWARD_LOCAL_PORT="${TASK_SEED_PORT_FORWARD_LOCAL_PORT:-}"
 
-# Returns the repo-local state directory used by the task seed flow.
-task_seed_state_dir() {
+# Returns the command-scoped connection string file path used by the mock app
+# CGI flow.
+task_seed_frontend_connection_file() {
   load_env
-  printf '%s\n' "${PLAYGROUND_STATE_DIR}/task-seed"
+  printf '%s/mock-frontend-%s.connection-string\n' "${PLAYGROUND_STATE_DIR}" "${PLAYGROUND_TASK_SEED_UI_PORT:-8789}"
 }
 
-# Returns the managed frontend PID file path.
-task_seed_frontend_pid_file() {
-  printf '%s/frontend.pid\n' "$(task_seed_state_dir)"
-}
-
-# Returns the managed frontend log file path.
-task_seed_frontend_log_file() {
-  printf '%s/frontend.log\n' "$(task_seed_state_dir)"
-}
-
-# Returns the managed database port-forward PID file path.
-task_seed_port_forward_pid_file() {
-  printf '%s/port-forward.pid\n' "$(task_seed_state_dir)"
-}
-
-# Returns the managed database port-forward log file path.
-task_seed_port_forward_log_file() {
-  printf '%s/port-forward.log\n' "$(task_seed_state_dir)"
-}
-
-# Returns the file that records the chosen local forwarded DB port.
-task_seed_port_forward_local_port_file() {
-  printf '%s/port-forward.local-port\n' "$(task_seed_state_dir)"
-}
-
-# Ensures the task seed runtime directory exists before writes.
-ensure_task_seed_state_dir() {
-  mkdir -p "$(task_seed_state_dir)"
-}
-
-# Stops one managed background process if its PID file still points at a live PID.
-task_seed_stop_process_from_pid_file() {
-  local pid_file="$1"
-  local pid=""
-
-  if [ ! -f "${pid_file}" ]; then
-    return 0
+# Stops the current command-scoped database port-forward, if present.
+task_seed_cleanup_port_forward() {
+  if [ -n "${TASK_SEED_PORT_FORWARD_PID}" ] && kill -0 "${TASK_SEED_PORT_FORWARD_PID}" >/dev/null 2>&1; then
+    kill "${TASK_SEED_PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    wait "${TASK_SEED_PORT_FORWARD_PID}" 2>/dev/null || true
   fi
 
-  IFS= read -r pid <"${pid_file}" || pid=""
-
-  if [ -n "${pid}" ] && kill -0 "${pid}" >/dev/null 2>&1; then
-    kill "${pid}" >/dev/null 2>&1 || true
-    wait "${pid}" 2>/dev/null || true
+  if [ -n "${TASK_SEED_PORT_FORWARD_LOG_FILE}" ] && [ -f "${TASK_SEED_PORT_FORWARD_LOG_FILE}" ]; then
+    rm -f "${TASK_SEED_PORT_FORWARD_LOG_FILE}"
   fi
 
-  rm -f "${pid_file}"
+  TASK_SEED_PORT_FORWARD_PID=""
+  TASK_SEED_PORT_FORWARD_LOG_FILE=""
+  TASK_SEED_PORT_FORWARD_LOCAL_PORT=""
 }
 
-# Stops the managed mock frontend server, if present.
-stop_task_seed_frontend() {
-  task_seed_stop_process_from_pid_file "$(task_seed_frontend_pid_file)"
+# Returns success when the current command owns one live database port-forward.
+task_seed_port_forward_running() {
+  [ -n "${TASK_SEED_PORT_FORWARD_PID}" ] && kill -0 "${TASK_SEED_PORT_FORWARD_PID}" >/dev/null 2>&1
 }
 
-# Stops the managed database port-forward, if present.
-stop_task_seed_port_forward() {
-  task_seed_stop_process_from_pid_file "$(task_seed_port_forward_pid_file)"
-  rm -f "$(task_seed_port_forward_local_port_file)"
-}
-
-# Stops all managed task seed background processes.
-stop_task_seed_runtime() {
-  stop_task_seed_frontend
-  stop_task_seed_port_forward
-}
-
-# Normalizes a URI scheme into one supported task seed engine key.
+# Normalizes a URI scheme into one supported mock demo engine key.
 task_seed_engine_from_scheme() {
   local scheme="$1"
 
@@ -378,41 +337,34 @@ task_seed_id_is_object_id() {
   [ "${#id}" -eq 24 ]
 }
 
-# Starts one managed kubectl port-forward and returns the chosen local port.
+# Starts one command-scoped kubectl port-forward and returns the chosen local
+# port.
 start_task_seed_port_forward() {
   local service_ref="$1"
   local namespace="$2"
   local remote_port="$3"
-  local log_file=""
-  local pid_file=""
-  local local_port_file=""
   local pid=0
   local attempt=0
   local local_port=""
 
   load_env
-  ensure_task_seed_state_dir
-  stop_task_seed_port_forward
+  task_seed_cleanup_port_forward
 
-  log_file="$(task_seed_port_forward_log_file)"
-  pid_file="$(task_seed_port_forward_pid_file)"
-  local_port_file="$(task_seed_port_forward_local_port_file)"
+  TASK_SEED_PORT_FORWARD_LOG_FILE="$(mktemp)"
 
-  : >"${log_file}"
-
-  kubectl --context "${KUBE_CONTEXT}" -n "${namespace}" port-forward "${service_ref}" ":${remote_port}" >"${log_file}" 2>&1 &
+  kubectl --context "${KUBE_CONTEXT}" -n "${namespace}" port-forward "${service_ref}" ":${remote_port}" >"${TASK_SEED_PORT_FORWARD_LOG_FILE}" 2>&1 &
   pid=$!
-  printf '%s\n' "${pid}" >"${pid_file}"
+  TASK_SEED_PORT_FORWARD_PID="${pid}"
 
   while [ "${attempt}" -lt 50 ]; do
     if ! kill -0 "${pid}" >/dev/null 2>&1; then
-      rm -f "${pid_file}" "${local_port_file}"
+      task_seed_cleanup_port_forward
       return 1
     fi
 
-    local_port="$(sed -nE 's/.*127\.0\.0\.1:([0-9]+).*/\1/p' "${log_file}" | head -n 1)"
+    local_port="$(sed -nE 's/.*127\.0\.0\.1:([0-9]+).*/\1/p' "${TASK_SEED_PORT_FORWARD_LOG_FILE}" | head -n 1)"
     if [ -n "${local_port}" ]; then
-      printf '%s\n' "${local_port}" >"${local_port_file}"
+      TASK_SEED_PORT_FORWARD_LOCAL_PORT="${local_port}"
       printf '%s\n' "${local_port}"
       return 0
     fi
@@ -421,7 +373,7 @@ start_task_seed_port_forward() {
     attempt=$((attempt + 1))
   done
 
-  stop_task_seed_port_forward
+  task_seed_cleanup_port_forward
   return 1
 }
 
@@ -575,8 +527,8 @@ WITH existing AS (
   FROM (
     VALUES
       ('Create a demo database in OpenEverest', TRUE),
-      ('Run task seed against its connection string', TRUE),
-      ('Open the mock todo app and try CRUD', FALSE)
+      ('Run task mock:seed against its connection string', TRUE),
+      ('Open task mock:app and try CRUD', FALSE)
   ) AS seed(title, completed)
   WHERE NOT (SELECT has_rows FROM existing)
 )
@@ -608,9 +560,9 @@ SELECT seed.title, seed.completed
 FROM (
   SELECT 'Create a demo database in OpenEverest' AS title, TRUE AS completed
   UNION ALL
-  SELECT 'Run task seed against its connection string', TRUE
+  SELECT 'Run task mock:seed against its connection string', TRUE
   UNION ALL
-  SELECT 'Open the mock todo app and try CRUD', FALSE
+  SELECT 'Open task mock:app and try CRUD', FALSE
 ) AS seed
 WHERE @task_seed_has_rows = 0;
 SELECT IF(@task_seed_has_rows = 1, 'already-present', 'seeded');
@@ -630,8 +582,8 @@ const todos = db.getCollection('${TASK_SEED_COLLECTION_NAME}');
 if (todos.countDocuments({}) === 0) {
   todos.insertMany([
     { title: 'Create a demo database in OpenEverest', completed: true, createdAt: new Date() },
-    { title: 'Run task seed against its connection string', completed: true, createdAt: new Date() },
-    { title: 'Open the mock todo app and try CRUD', completed: false, createdAt: new Date() }
+    { title: 'Run task mock:seed against its connection string', completed: true, createdAt: new Date() },
+    { title: 'Open task mock:app and try CRUD', completed: false, createdAt: new Date() }
   ]);
   print('seeded');
 } else {

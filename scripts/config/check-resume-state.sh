@@ -2,7 +2,8 @@
 # -----------------------------------------------------------------------------
 # Verifies that resume-style commands can reuse a previously initialized
 # playground without silently reconciling config drift or recreating the
-# cluster. `task up` and `task seed` both rely on this guard.
+# cluster. `task up`, `task mock:seed`, and `task mock:app` all rely on this
+# guard.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -27,7 +28,7 @@ fi
 if config_changes_present "${APPLIED_CONFIG_FILE}" "${candidate_snapshot}"; then
   warn "Current config differs from the initialized playground state."
   print_config_change_summary "${APPLIED_CONFIG_FILE}" "${candidate_snapshot}"
-  die "Run 'task init' to apply those config changes before using 'task up' or 'task seed'."
+  die "Run 'task init' to apply those config changes before using 'task up', 'task mock:seed', or 'task mock:app'."
 fi
 
 if ! playground_exists_for_snapshot "${APPLIED_CONFIG_FILE}"; then

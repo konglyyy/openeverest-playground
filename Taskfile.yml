@@ -44,10 +44,25 @@ tasks:
     cmds:
       - ./scripts/ops/up.sh
 
-  seed:
-    desc: Seed a user-created database and optionally open a mock todo frontend
+  mock:
+    desc: Show the available mock demo commands
     cmds:
-      - ./scripts/ops/seed.sh
+      - |
+        cat <<'EOF'
+        task: Available mock demo commands:
+        * mock:seed:         Seed demo todo data for the mock app
+        * mock:app:          Run the mock todo app in the foreground
+        EOF
+
+  mock:seed:
+    desc: Seed demo todo data for the mock app
+    cmds:
+      - ./scripts/ops/mock-seed.sh
+
+  mock:app:
+    desc: Run the mock todo app in the foreground
+    cmds:
+      - ./scripts/ops/mock-app.sh
 
   down:
     desc: Stop the k3d cluster without deleting it

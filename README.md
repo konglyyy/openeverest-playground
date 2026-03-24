@@ -26,6 +26,7 @@
 - [Configuration](#configuration)
 - [Commands](#commands)
 - [Playground Layout](#playground-layout)
+- [Mock Demo](#mock-demo)
 - [Troubleshooting](#troubleshooting)
 - [Script Layout](#script-layout)
 - [Contributing](#contributing)
@@ -42,7 +43,7 @@ The playground is built around a simple lifecycle:
 - `task init` is the required first-run entrypoint
 - `task down` stops the cluster without deleting it
 - `task up` resumes a previously initialized cluster
-- `task seed` prepares demo todo data for one user-created database and can open a mock CRUD UI
+- `task mock` lists the optional mock demo commands, including `task mock:seed` and `task mock:app`
 - `task reset` deletes the cluster and local state while preserving the repo-local Docker Hub cache
 - `task reset:full` deletes the cluster, local state, and the repo-local Docker Hub cache
 
@@ -71,7 +72,7 @@ The project intentionally optimizes for fast local evaluation and repeatable dem
 - Optional shared SeaweedFS S3-compatible backup endpoint for backup testing
 - Resume-only `task up` flow so start/stop is fast and predictable after initialization
 - Direct local UI access on [http://localhost:8080](http://localhost:8080) through the built-in k3s Traefik ingress
-- Optional `task seed` demo flow for seeding one database and opening a tiny CRUD UI against `playground_todos`
+- Optional `task mock:seed` and `task mock:app` demo flow for seeding one database and running a tiny CRUD UI against `playground_todos`
 - Concise terminal UX with an init wizard, structured `[INFO]` logs, resolved layout summaries, and loading indicators for long-running steps
 - Contributor validation workflows for static checks, shell tests, and a minimal-layout smoke test
 
@@ -114,7 +115,7 @@ The playground expects these tools to be installed locally:
 - `helm`
 - `jq`
 - `task`
-- `python3` if you want `task seed` to launch the optional mock frontend locally
+- `python3` if you want `task mock:app` to launch the optional mock frontend locally
 
 You can validate the environment with:
 
@@ -167,10 +168,16 @@ task down
 task up
 ```
 
-7. After you create a database in the OpenEverest UI, seed a tiny demo dataset and optionally open the mock todo app:
+7. After you create a database in the OpenEverest UI, seed a tiny demo dataset:
 
 ```bash
-task seed
+task mock:seed
+```
+
+8. When you want to try the mock todo app UI, start it separately:
+
+```bash
+task mock:app
 ```
 
 The first `task init` can take up to 5-10 minutes on a fresh machine because it needs to create the cluster, pull images, install OpenEverest, and start all three database operators. Enabling backup adds extra work on top of that.
@@ -219,7 +226,9 @@ Config behavior:
 | --- | --- |
 | `task init` | Interactively configure the playground and provision it |
 | `task up` | Resume a previously initialized playground without reinstalling it |
-| `task seed` | Seed a user-created database and optionally open a mock todo frontend |
+| `task mock` | Show the available mock demo commands |
+| `task mock:seed` | Seed demo todo data for the mock app |
+| `task mock:app` | Run the mock todo app in the foreground |
 | `task down` | Stop the `k3d` cluster without deleting it |
 | `task reset` | Delete the cluster and local state while preserving `.cache/dockerhub-registry` |
 | `task reset:full` | Delete the cluster, local state, and `.cache/dockerhub-registry` |
@@ -270,16 +279,17 @@ When backup is enabled:
 
 * * *
 
-### Task Seed
+### Mock Demo
 
-`task seed` is an optional demo helper that keeps the playground lightweight:
+The optional `task mock:*` commands keep the demo flow lightweight:
 
-- it first checks that `task init` already completed successfully
-- it prompts for a database connection string copied from the OpenEverest UI
-- it creates and seeds only a small `playground_todos` table or collection; if that demo data is already present, it leaves it unchanged
-- it can also open a tiny local CRUD UI against that same seeded data by serving one local CGI app with `python3`
+- `task mock:seed` first checks that `task init` already completed successfully
+- `task mock:seed` prompts for a database connection string copied from the OpenEverest UI
+- `task mock:seed` creates and seeds only a small `playground_todos` table or collection; if that demo data is already present, it leaves it unchanged
+- `task mock:seed` prints the next-step reminder to run `task mock:app` manually when you want the UI
+- `task mock:app` serves the tiny local CRUD UI in the foreground with `python3` and prompts for the database connection string every time it starts
 
-When the supplied database host is cluster-internal, `task seed` keeps a local `kubectl port-forward` running only for the lifetime of the mock frontend.
+When the supplied database host is cluster-internal, `task mock:seed` and `task mock:app` keep a local `kubectl port-forward` running only for the lifetime of the current command.
 
 * * *
 
@@ -287,8 +297,8 @@ When the supplied database host is cluster-internal, `task seed` keeps a local `
 
 - If `task up` says the playground is not initialized, run `task init` first.
 - If `task up` says the config changed, rerun `task init` to apply the current `config/playground.env`.
-- If `task seed` says the cluster is not running, start it with `task up` first.
-- If `task seed` opens the mock frontend, closing it cleanly later is as simple as rerunning `task seed`, `task down`, or `task reset`.
+- If `task mock:seed` or `task mock:app` says the cluster is not running, start it with `task up` first.
+- Stop the mock app from the terminal where `task mock:app` is running by pressing `Ctrl-C`.
 - If `task init` says the current plan requires a reset, run `task reset` and then `task init`.
 - If `task init` says the Docker budget cannot fit the resolved plan, increase the Docker Desktop memory or CPU limit and rerun it.
 - If setup feels slow, the biggest unavoidable costs are first-time image pulls and starting the control-plane services and operators. Backup-enabled runs also need to start their optional add-ons.
@@ -308,9 +318,9 @@ The shell scripts are grouped by responsibility:
 - `scripts/ci/` for GitHub Actions bootstrap, validation helpers, smoke checks, and diagnostics
 - `scripts/common/` for the shared helper loader plus focused helper modules under `scripts/common/modules/`
 - `scripts/doctor/` for preflight validation
-- `scripts/ops/` for logs, status, resume flow, and the task seed entrypoint
+- `scripts/ops/` for logs, status, resume flow, and the mock command entrypoints
 - `scripts/platform/` for Everest installation, DB namespace setup, backup setup, control-plane placement and tainting, ingress checks, and readiness waits
-- `scripts/seed/` for the optional task seed database helpers and mock frontend
+- `scripts/seed/` for the optional mock demo database helpers and mock frontend
 
 Shell and Bats files also follow one repo-wide convention: each file starts with
 a short purpose header, and each function is preceded by a brief comment that

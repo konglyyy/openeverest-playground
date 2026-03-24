@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Small CGI todo app used by the optional `task seed` mock frontend.
+# Small CGI todo app used by the optional `task mock:app` demo flow.
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
@@ -109,7 +109,7 @@ print_error_page() {
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>OpenEverest Task Seed</title>
+    <title>OpenEverest Mock App</title>
     <style>
       body {
         font-family: Menlo, Monaco, "Courier New", monospace;
@@ -132,7 +132,7 @@ print_error_page() {
   </head>
   <body>
     <main>
-      <h1>Task seed demo is unavailable</h1>
+      <h1>Mock app is unavailable</h1>
       <p>$(html_escape "${message}")</p>
       <p>The seeded data still lives in <code>${TASK_SEED_COLLECTION_NAME}</code>.</p>
     </main>
@@ -208,7 +208,7 @@ render_page() {
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OpenEverest Task Seed</title>
+    <title>OpenEverest Mock App</title>
     <style>
       :root {
         color-scheme: light;
@@ -337,7 +337,7 @@ render_page() {
   <body>
     <main>
       <section class="hero">
-        <h1>OpenEverest task seed</h1>
+        <h1>OpenEverest mock app</h1>
         <p>This lightweight demo talks straight to your seeded ${engine_label} database and only touches <code>${TASK_SEED_COLLECTION_NAME}</code>.</p>
         <div class="meta">
           <span>CRUD surface: <code>${TASK_SEED_COLLECTION_NAME}</code></span>
@@ -413,11 +413,33 @@ handle_post() {
   print_redirect_page
 }
 
+# Loads the current mock app connection string from the command-scoped runtime
+# file when the direct environment handoff is unavailable.
+load_task_seed_frontend_connection_string() {
+  local connection_string_file=""
+  local connection_string=""
+
+  connection_string="${PLAYGROUND_TASK_SEED_CONNECTION_STRING:-}"
+  if [ -n "${connection_string}" ]; then
+    printf '%s\n' "${connection_string}"
+    return 0
+  fi
+
+  connection_string_file="$(task_seed_frontend_connection_file)"
+  if [ ! -f "${connection_string_file}" ]; then
+    return 1
+  fi
+
+  IFS= read -r connection_string <"${connection_string_file}" || connection_string=""
+  [ -n "${connection_string}" ] || return 1
+  printf '%s\n' "${connection_string}"
+}
+
 load_env
-connection_string="${PLAYGROUND_TASK_SEED_CONNECTION_STRING:-}"
+connection_string="$(load_task_seed_frontend_connection_string 2>/dev/null || true)"
 
 if [ -z "${connection_string}" ]; then
-  print_error_page "The task seed connection string is not loaded. Rerun task seed."
+  print_error_page "The mock app connection string is not loaded. Rerun task mock:app."
   exit 0
 fi
 
